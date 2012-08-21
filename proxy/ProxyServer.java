@@ -17,6 +17,7 @@ public class ProxyServer {
 
         try {
             serverSocket = new ServerSocket(port);
+            System.out.println("Woo");
             System.out.println("Started on: " + port);
         } catch (IOException e) {
             System.err.println("Could not listen on port: " + args[0]);

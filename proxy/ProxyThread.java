@@ -4,6 +4,9 @@ import java.net.*;
 import java.io.*;
 import java.util.*;
 
+import proxy.config.Config;
+import proxy.config.Mock;
+
 public class ProxyThread extends Thread {
     private Socket socket = null;
     private static final int BUFFER_SIZE = 32768;
@@ -17,18 +20,25 @@ public class ProxyThread extends Thread {
         //send request to server
         //get response from server
         //send response to user
+    	
+   
+    	
+    	
+    	
 
         try {
-            DataOutputStream out =
-		new DataOutputStream(socket.getOutputStream());
-            BufferedReader in = new BufferedReader(
-		new InputStreamReader(socket.getInputStream()));
+        	
+        	// get config
+        	Config config = Config.getConfig();
+        	System.out.println("Config loaded. We have  " + config.getMocks().size() + " mocks");
+        	
+            DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+            BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 
-            String inputLine, outputLine;
+            String inputLine;
             int cnt = 0;
             String urlToCall = "";
-            ///////////////////////////////////
-            //begin get request from client
+
             while ((inputLine = in.readLine()) != null) {
                 try {
                     StringTokenizer tok = new StringTokenizer(inputLine);
@@ -48,52 +58,51 @@ public class ProxyThread extends Thread {
             }
 
 
-            BufferedReader rd = null;
-                //begin send request to server, get response from server
-                URL url = new URL(urlToCall);
-                URLConnection conn = url.openConnection();
-                conn.setDoInput(true);
-                //not doing HTTP posts
-                conn.setDoOutput(false);
+        	BufferedReader rd = null;
+            //begin send request to server, get response from server
+            URL url = new URL(urlToCall);
+            URLConnection conn = url.openConnection();
+            conn.setDoInput(true);
+            //not doing HTTP posts
+            conn.setDoOutput(false);
 
-                // Get the response
-                InputStream is = null;
-                HttpURLConnection huc = (HttpURLConnection)conn;
-					System.out.println("Connection found");
-                    try {
-                        is = conn.getInputStream();
-						if (urlToCall.equals("http://someurl")) {
-							System.out.println("trying to break the app!");
-							String s= "break"; // your String
-							StringReader sr= new StringReader(s); // wrap your String
-							rd = new BufferedReader(sr); // wrap your StringReader
-						} else {
-                        	rd = new BufferedReader(new InputStreamReader(is));
-						}
-                    } catch (IOException ioe) {
-                        System.out.println(
-				"********* IO EXCEPTION **********: " + ioe);
-                    }
+            // Gsset the response
+            InputStream is = null;
 
-                byte by[] = new byte[ BUFFER_SIZE ];
-                int index = is.read( by, 0, BUFFER_SIZE );
-                while ( index != -1 )
-                {
-                  out.write( by, 0, index );
-                  index = is.read( by, 0, BUFFER_SIZE );
-                }
-                out.flush();
-
-                //end send response to client
-                ///////////////////////////////////
-           /* }  catch (Exception e) {
-                //can redirect this to error log
-                System.err.println("Encountered exception: " + e);
-                //encountered error - just send nothing back, so
-                //processing can continue
-                out.writeBytes("");
+            String stubbedContents = null;
+           for (Mock mock : config.getMocks()) {
+        	   if (urlToCall.equals(mock.getUrl())) {
+        		   stubbedContents = mock.getStubFileContents();
+        	   }
+           }
+			
+            try {
+				if (stubbedContents != null) {
+					System.out.println("Getting mock");
+					is = new ByteArrayInputStream(stubbedContents.getBytes());
+				} else {
+					System.out.println("Getting real content");
+					System.out.println("Getting real content!");
+					conn.connect();
+					is = conn.getInputStream();
+					System.out.println("End real content");
+				}
+				rd = new BufferedReader(new InputStreamReader(is));
+            } catch (IOException ioe) {
+                System.out.println(
+		"********* IO EXCEPTION **********: " + ioe);
             }
-*/
+                
+           
+            byte by[] = new byte[ BUFFER_SIZE ];
+            int index = is.read( by, 0, BUFFER_SIZE );
+            while ( index != -1 )
+            {
+              out.write( by, 0, index );
+              index = is.read( by, 0, BUFFER_SIZE );
+            }
+            out.flush();
+
 
             //close out all resources
             if (rd != null) {
