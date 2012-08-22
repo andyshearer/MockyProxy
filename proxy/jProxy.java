@@ -13,7 +13,7 @@ public class jProxy extends Thread
 	private String fwdServer = "";
 	private int fwdPort = 0;
 	private int ptTimeout = jProxyThread.DEFAULT_TIMEOUT;
-	private int debugLevel = 0;
+	private int debugLevel = 1;
 	private PrintStream debugOut = System.out;
 	
 	
@@ -49,8 +49,8 @@ public class jProxy extends Thread
 		}
 		
 		// create and start the jProxy thread, using a 20 second timeout
-		// value to keep the threads from piling up too much
-		System.err.println("  **  Starting jProxy on port " + port + ". Press CTRL-C to end.  **\n");
+		// value to keep 	the threads from piling up too much
+
 		jProxy jp = new jProxy(port, fwdProxyServer, fwdProxyPort, 20);
 		jp.setDebug(1, System.out);		// or set the debug level to 2 for tons of output
 		jp.start();
@@ -157,7 +157,7 @@ public class jProxy extends Thread
 			// client connections
 			server = new ServerSocket(thisPort);
 			if (debugLevel > 0)
-				debugOut.println("Started jProxy on port " + thisPort);
+				System.out.println("MockyProxy Started on: " + thisPort);
 			
 			while (true)
 			{

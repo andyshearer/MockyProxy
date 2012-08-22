@@ -1,4 +1,5 @@
 *.class
 .metadata*
 config/*.*
+subs/*
 config/config.json

@@ -5,6 +5,10 @@ import java.net.*;
 import java.util.StringTokenizer;
 import java.lang.reflect.Array;
 
+import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletResponseWrapper;
+
+
 import proxy.config.Config;
 import proxy.config.Mock;
 /* 
@@ -87,7 +91,7 @@ class jProxyThread extends Thread
 			// get the header info (the web browser won't disconnect after
 			// it's sent a request, so make sure the waitForDisconnect
 			// parameter is false)
-			request = getHTTPData(clientIn, host, url, false);
+			request = getHTTPData(clientIn, host, url, false, true, null, null);
 			urlToCall = url.toString();
 			requestLength = Array.getLength(request);
 			config = Config.getConfig();
@@ -122,6 +126,7 @@ class jProxyThread extends Thread
 			}
 			
 			String stubbedContents = null;
+			Integer stubbedResponseCode = null;
 			if (server != null)
 			{
 				server.setSoTimeout(socketTimeout);
@@ -145,8 +150,9 @@ class jProxyThread extends Thread
 				
 				for (Mock mock : config.getMocks()) {
 				   if (urlToCall.equals(mock.getUrl())) {
-					   System.out.println("MOCKED! " + urlToCall);
 					   stubbedContents = mock.getStubFileContents();
+					   stubbedResponseCode = mock.getResponseCode();
+					   this.debugOut.println("reponsecode " + stubbedResponseCode);
 				   }
 				}
 									
@@ -154,10 +160,21 @@ class jProxyThread extends Thread
 				if (debugLevel > 1 || stubbedContents != null)
 				{
 					if (stubbedContents != null) {
-						response = stubbedContents.getBytes();
+						// use headers from the server actual response
+						byte[] httpHeaders = getHTTPData(serverIn, true, true, stubbedContents, stubbedResponseCode);
+						byte[] stubbed = stubbedContents.getBytes();
+						
+						byte[] combined = new byte[httpHeaders.length + stubbed.length];
+
+						for (int i = 0; i < combined.length; ++i)
+						{
+						    combined[i] = i < httpHeaders.length ? httpHeaders[i] : stubbed[i - httpHeaders.length];
+						}
+
+						response = combined;
 						
 					} else {
-						response = getHTTPData(serverIn, true);
+						response = getHTTPData(serverIn, true, false, null, null);
 					}
 					responseLength = Array.getLength(response);
 				}  else  {
@@ -178,6 +195,7 @@ class jProxyThread extends Thread
 			if (debugLevel > 0)
 			{
 				long endTime = System.currentTimeMillis();
+				debugOut.println("Request for " + urlToCall);
 				debugOut.println("Request from " + pSocket.getInetAddress().getHostAddress() + 
 									" on Port " + pSocket.getLocalPort() + 
 									" to host " + hostName + ":" + hostPort + 
@@ -206,7 +224,7 @@ class jProxyThread extends Thread
 	}
 	
 	
-	private byte[] getHTTPData (InputStream in, boolean waitForDisconnect)
+	private byte[] getHTTPData (InputStream in, boolean waitForDisconnect, boolean headerOnly, String stubbedBody, Integer stubbedResponseCode)
 	{
 		// get the HTTP data from an InputStream, and return it as
 		// a byte array
@@ -215,11 +233,11 @@ class jProxyThread extends Thread
 		// transmission
 		StringBuffer foo = new StringBuffer("");
 		StringBuffer bar = new StringBuffer("");
-		return getHTTPData(in, foo, bar, waitForDisconnect);
+		return getHTTPData(in, foo, bar, waitForDisconnect, headerOnly, stubbedBody, stubbedResponseCode);
 	}
 	
 	
-	private byte[] getHTTPData (InputStream in, StringBuffer host, StringBuffer url, boolean waitForDisconnect)
+	private byte[] getHTTPData (InputStream in, StringBuffer host, StringBuffer url, boolean waitForDisconnect, boolean headerOnly, String stubbedBody, Integer stubbedResponseCode)
 	{
 		// get the HTTP data from an InputStream, and return it as
 		// a byte array, and also return the Host entry in the header,
@@ -227,7 +245,7 @@ class jProxyThread extends Thread
 		// for the 'host' variable, because a String won't return any
 		// information when it's used as a parameter like that
 		ByteArrayOutputStream bs = new ByteArrayOutputStream();
-		streamHTTPData(in, bs, host, url, waitForDisconnect);
+		streamHTTPData(in, bs, host, url, waitForDisconnect, headerOnly, stubbedBody, stubbedResponseCode);
 		return bs.toByteArray();
 	}
 	
@@ -236,11 +254,15 @@ class jProxyThread extends Thread
 	{
 		StringBuffer foo = new StringBuffer("");
 		StringBuffer bar = new StringBuffer("");
-		return streamHTTPData(in, out, foo, bar, waitForDisconnect);
+		return streamHTTPData(in, out, foo, bar, waitForDisconnect, false, null, null);
 	}
 	
 	private int streamHTTPData (InputStream in, OutputStream out, 
-									StringBuffer host, StringBuffer url, boolean waitForDisconnect)
+									StringBuffer host, StringBuffer url, 
+									boolean waitForDisconnect,
+									boolean headerOnly,
+									String stubbedBody,
+									Integer stubbedResponseCode)
 	{
 		// get the HTTP data from an InputStream, and send it to
 		// the designated OutputStream
@@ -258,29 +280,39 @@ class jProxyThread extends Thread
 			
 			if (data.split(" ")[1].toString().startsWith("http")) {
 				url.append(data.split(" ")[1].toString());
-				System.out.println("-- url " + url.toString());
 			}
 			if (data != null)
 			{
 				
 			
-				
-				header.append(data + "\r\n");
 				pos = data.indexOf(" ");
 				
-				if ((data.toLowerCase().startsWith("http")) && 
-					(pos >= 0) && (data.indexOf(" ", pos+1) >= 0))
-				{
-					String rcString = data.substring(pos+1, data.indexOf(" ", pos+1));
+				if ((data.toLowerCase().startsWith("http")) && (pos >= 0) && (data.indexOf(" ", pos+1) >= 0)) {
+					 this.debugOut.println("stubbed response " + stubbedResponseCode);
+					if (stubbedResponseCode != null) {
+					// sustitue reponse code with stubbed one.
+						String[] top = data.split(" ");
+					    top[1] = stubbedResponseCode.toString();
+						data = "";
+						for (String s : top) {
+							data = data + " " + s;
+						}
 					
-					try
-					{
+						this.debugOut.println("response string: " + data);
+						responseCode = stubbedResponseCode.intValue();
+					}
+					
+					String rcString = data.substring(pos+1, data.indexOf(" ", pos+1));
+					try {
 						responseCode = Integer.parseInt(rcString);
 					}  catch (Exception e)  {
 						if (debugLevel > 0)
 							debugOut.println("Error parsing response code " + rcString);
 					}
 				}
+				
+				
+				header.append(data + "\r\n");
 			}
 			
 			// get the rest of the header info
@@ -289,7 +321,15 @@ class jProxyThread extends Thread
 				// the header ends at the first blank line
 				if (data.length() == 0)
 					break;
-				header.append(data + "\r\n");
+				
+				if (stubbedBody == null) {
+					header.append(data + "\r\n");   // remove all content-length headers...					
+				} else if (data.toLowerCase().contains("content-length:")) {
+					contentLength = stubbedBody.getBytes().length;
+					header.append("content-length: " + contentLength + "\r\n");   // remove all content-length headers...	
+				} else {
+					header.append(data + "\r\n");
+				}
 				
 				// check for the Host header
 				pos = data.toLowerCase().indexOf("host:");
@@ -299,10 +339,12 @@ class jProxyThread extends Thread
 					host.append(data.substring(pos + 5).trim());
 				}
 				
-				// check for the Content-Length header
-				pos = data.toLowerCase().indexOf("content-length:");
-				if (pos >= 0) {
-					contentLength = Integer.parseInt(data.substring(pos + 15).trim());
+				if (stubbedBody == null) {
+					// check for the Content-Length header
+					pos = data.toLowerCase().indexOf("content-length:");
+					if (pos >= 0) {
+						contentLength = Integer.parseInt(data.substring(pos + 15).trim());
+					}
 				}
 			}
 			
@@ -311,41 +353,51 @@ class jProxyThread extends Thread
 			
 			// convert the header to a byte array, and write it to our stream
 			out.write(header.toString().getBytes(), 0, header.length());
-			
-			// if the header indicated that this was not a 200 response,
-			// just return what we've got if there is no Content-Length,
-			// because we may not be getting anything else
-			if ((responseCode != 200) && (contentLength == 0))
-			{
-				out.flush();
-				return header.length();
-			}
-
-			// get the body, if any; we try to use the Content-Length header to
-			// determine how much data we're supposed to be getting, because 
-			// sometimes the client/server won't disconnect after sending us
-			// information...
-			if (contentLength > 0)
-				waitForDisconnect = false;
-			
-			if ((contentLength > 0) || (waitForDisconnect))
-			{
-				try {
-					byte[] buf = new byte[4096];
-					int bytesIn = 0;
-					while ( ((byteCount < contentLength) || (waitForDisconnect)) 
-							&& ((bytesIn = in.read(buf)) >= 0) )
-					{
-						out.write(buf, 0, bytesIn);
-						byteCount += bytesIn;
-					}
-				}  catch (Exception e)  {
-					String errMsg = "Error getting HTTP body: " + e;
-					if (debugLevel > 0)
-						debugOut.println(errMsg);
-					//bs.write(errMsg.getBytes(), 0, errMsg.length());
+						
+				// if the header indicated that this was not a 200 response,
+				// just return what we've got if there is no Content-Length,
+				// because we may not be getting anything else
+				if ((responseCode != 200) && (contentLength == 0))
+				{
+					out.flush();
+					return header.length();
 				}
-			}
+	
+				// get the body, if any; we try to use the Content-Length header to
+				// determine how much data we're supposed to be getting, because 
+				// sometimes the client/server won't disconnect after sending us
+				// information...
+				if (contentLength > 0)
+					waitForDisconnect = false;
+				
+				if ((contentLength > 0) || (waitForDisconnect))
+				{
+					try {
+						if (stubbedBody == null) {
+							byte[] buf = new byte[4096];
+							int bytesIn = 0;
+							while ( ((byteCount < contentLength) || (waitForDisconnect)) && ((bytesIn = in.read(buf)) >= 0) ) {
+								out.write(buf, 0, bytesIn);
+								byteCount += bytesIn;
+							}
+						} else {
+							StringBufferInputStream bodybuffer = new StringBufferInputStream(stubbedBody);
+							byte[] buf = new byte[4096];
+							int bytesIn = 0;
+							while ( ((byteCount < contentLength) || (waitForDisconnect)) && ((bytesIn = bodybuffer.read(buf)) >= 0) ) {
+								out.write(buf, 0, bytesIn);
+								byteCount += bytesIn;
+							}
+						}
+						
+					}  catch (Exception e)  {
+						String errMsg = "Error getting HTTP body: " + e;
+						if (debugLevel > 0)
+							debugOut.println(errMsg);
+						//bs.write(errMsg.getBytes(), 0, errMsg.length());
+					}
+				}
+	
 		}  catch (Exception e)  {
 			if (debugLevel > 0)
 				debugOut.println("Error getting HTTP data: " + e);
@@ -354,6 +406,7 @@ class jProxyThread extends Thread
 		//flush the OutputStream and return
 		try  {  out.flush();  }  catch (Exception e)  {}
 		return (header.length() + byteCount);
+	
 	}
 	
 	
