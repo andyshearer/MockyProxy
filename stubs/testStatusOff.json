@@ -1,5 +1,5 @@
 {
-
-	"appStatus": "OFF"
-
+  "status": {
+    "appStatus": "off"
+  }
 }
