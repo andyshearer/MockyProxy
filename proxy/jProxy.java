@@ -26,6 +26,7 @@ public class jProxy extends Thread
 		
 		if (args.length == 0)
 		{
+			
 			/*
 			System.err.println("USAGE: java jProxy <port number> [<fwd proxy> <fwd port>]");
 			System.err.println("  <port number>   the port this service listens on");
