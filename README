@@ -1,7 +1,22 @@
-example usage
+h2. example usage
 
 java -cp . proxy.ProxyServer
 
 From jar
 
 java -jar MockyProxy.jar /path/to/your/jar/config.json
+
+h2. example config.json
+
+{
+
+    "port": 10000,
+	"mocks": [
+		{
+			"url":"http://example.com/"stub.json,
+			"stubFile":"/path/to/mystub/stub.json",
+			"responseCode":500
+		}
+	]
+
+}
