@@ -2,7 +2,6 @@ package proxy;
 
 import java.io.*;
 import java.net.*;
-import java.lang.reflect.Array;
 
 public class jProxy extends Thread
 {
@@ -11,6 +10,7 @@ public class jProxy extends Thread
 	private ServerSocket server = null;
 	private int thisPort = DEFAULT_PORT;
 	private String fwdServer = "";
+	private String config;
 	private int fwdPort = 0;
 	private int ptTimeout = jProxyThread.DEFAULT_TIMEOUT;
 	private int debugLevel = 1;
@@ -27,32 +27,21 @@ public class jProxy extends Thread
 		if (args.length == 0)
 		{
 			
-			/*
-			System.err.println("USAGE: java jProxy <port number> [<fwd proxy> <fwd port>]");
-			System.err.println("  <port number>   the port this service listens on");
-			System.err.println("  <fwd proxy>     optional proxy server to forward requests to");
-			System.err.println("  <fwd port>      the port that the optional proxy server is on");
-			System.err.println("\nHINT: if you don't want to see all the debug information flying by,");
-			System.err.println("you can pipe the output to a file or to 'nul' using \">\". For example:");
-			System.err.println("  to send output to the file prox.txt: java jProxy 8080 > prox.txt");
-			System.err.println("  to make the output go away: java jProxy 8080 > nul");
+		
+			System.err.println("USAGE: java jProxy <Config location>");
+			System.err.println("   <Config url>  Location of the config.json file");
 			return;
-			*/
+			
 		}
 		
 		// get the command-line parameters
-		// port = Integer.parseInt(args[0]);
+		String config = args[0];
 		port = DEFAULT_PORT;
-		if (args.length > 2)
-		{
-			fwdProxyServer = args[1];
-			fwdProxyPort = Integer.parseInt(args[2]);
-		}
 		
 		// create and start the jProxy thread, using a 20 second timeout
 		// value to keep 	the threads from piling up too much
 
-		jProxy jp = new jProxy(port, fwdProxyServer, fwdProxyPort, 20);
+		jProxy jp = new jProxy(port, fwdProxyServer, fwdProxyPort, 20, config);
 		jp.setDebug(1, System.out);		// or set the debug level to 2 for tons of output
 		jp.start();
 		
@@ -89,12 +78,13 @@ public class jProxy extends Thread
 		fwdPort = proxyPort;
 	}
 	
-	public jProxy (int port, String proxyServer, int proxyPort, int timeout)
+	public jProxy (int port, String proxyServer, int proxyPort, int timeout, String config)
 	{
 		thisPort = port;
 		fwdServer = proxyServer;
 		fwdPort = proxyPort;
 		ptTimeout = timeout;
+		this.config = config;
 	}
 	
 	
@@ -163,7 +153,7 @@ public class jProxy extends Thread
 			while (true)
 			{
 				Socket client = server.accept();
-				jProxyThread t = new jProxyThread(client, fwdServer, fwdPort);
+				jProxyThread t = new jProxyThread(client, fwdServer, fwdPort, config);
 				t.setDebug(debugLevel, debugOut);
 				t.setTimeout(ptTimeout);
 				t.start();

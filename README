@@ -1,3 +1,7 @@
 example usage
 
 java -cp . proxy.ProxyServer
+
+From jar
+
+java -jar MockyProxy.jar /path/to/your/jar/config.json

@@ -16,9 +16,9 @@ public class Config {
 	}
 	
 	
-	public static Config getConfig() throws IOException {
+	public static Config getConfig(String configDir) throws IOException {
 		Gson gson = new Gson();
-		String jsonString = readFileAsString("config/config.json");
+		String jsonString = readFileAsString(configDir);
 		return gson.fromJson(jsonString, Config.class);
 	}
 	

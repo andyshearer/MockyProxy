@@ -2,11 +2,7 @@ package proxy;
 
 import java.io.*;
 import java.net.*;
-import java.util.StringTokenizer;
 import java.lang.reflect.Array;
-
-import javax.servlet.http.HttpServletResponse;
-import javax.servlet.http.HttpServletResponseWrapper;
 
 
 import proxy.config.Config;
@@ -22,6 +18,7 @@ class jProxyThread extends Thread
 	private String fwdServer = "";
 	private int fwdPort = 0;
 	private int debugLevel = 0;
+	private String configDir;
 	private PrintStream debugOut = System.out;
 	
 	// the socketTimeout is used to time out the connection to
@@ -38,11 +35,12 @@ class jProxyThread extends Thread
 		pSocket = s;
 	}
 
-	public jProxyThread(Socket s, String proxy, int port)
+	public jProxyThread(Socket s, String proxy, int port, String config)
 	{
 		pSocket = s;
 		fwdServer = proxy;
 		fwdPort = port;
+		configDir = config;
 	}
 	
 	
@@ -94,7 +92,7 @@ class jProxyThread extends Thread
 			request = getHTTPData(clientIn, host, url, false, true, null, null);
 			urlToCall = url.toString();
 			requestLength = Array.getLength(request);
-			config = Config.getConfig();
+			config = Config.getConfig(configDir);
 			
 			// separate the host name from the host port, if necessary
 			// (like if it's "servername:8000")

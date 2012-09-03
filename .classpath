@@ -3,6 +3,5 @@
 	<classpathentry kind="src" path=""/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="proxy/libs/gson-2.2.2.jar"/>
-	<classpathentry kind="lib" path="proxy/libs/servlet-api-2.3.jar"/>
 	<classpathentry kind="output" path=""/>
 </classpath>
