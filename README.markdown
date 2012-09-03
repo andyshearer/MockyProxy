@@ -8,7 +8,8 @@ java -jar MockyProxy.jar /path/to/your/jar/config.json
 
 # Example config.json
 
-`{
+```javascript
+{
 
     "port": 10000,
 	"mocks": [
@@ -19,4 +20,5 @@ java -jar MockyProxy.jar /path/to/your/jar/config.json
 		}
 	]
 
-}`
+}
+```
