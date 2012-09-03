@@ -1,6 +1,6 @@
 # Example usage
 ## From class source
-java -cp . proxy.ProxyServer
+java -cp . proxy.jProxy
 
 ## From jar
 
