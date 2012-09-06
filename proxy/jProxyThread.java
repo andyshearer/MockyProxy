@@ -89,7 +89,7 @@ class jProxyThread extends Thread
 			// get the header info (the web browser won't disconnect after
 			// it's sent a request, so make sure the waitForDisconnect
 			// parameter is false)
-			request = getHTTPData(clientIn, host, url, false, true, null, null);
+		//	request = getHTTPData(clientIn, host, url, false, true, null, null);
 			urlToCall = url.toString();
 			requestLength = Array.getLength(request);
 			config = Config.getConfig(configDir);
@@ -242,11 +242,10 @@ class jProxyThread extends Thread
 		// if it's specified -- note that we have to use a StringBuffer
 		// for the 'host' variable, because a String won't return any
 		// information when it's used as a parameter like that
-		ByteArrayOutputStream bs = new ByteArrayOutputStream();
+		ByteArrayOutputStream bs = new ByteArrayOutputStream();	
 		streamHTTPData(in, bs, host, url, waitForDisconnect, headerOnly, stubbedBody, stubbedResponseCode);
 		return bs.toByteArray();
-	}
-	
+	}	
 
 	private int streamHTTPData (InputStream in, OutputStream out, boolean waitForDisconnect)
 	{
@@ -270,131 +269,160 @@ class jProxyThread extends Thread
 		int contentLength = 0;
 		int pos = -1;
 		int byteCount = 0;
-
-		try
-		{
-			// get the first line of the header, so we know the response code
-			data = readLine(in);
-			
-			if (data.split(" ")[1].toString().startsWith("http")) {
-				url.append(data.split(" ")[1].toString());
-			}
-			if (data != null)
+ 
+			try
 			{
-				
-			
-				pos = data.indexOf(" ");
-				
-				if ((data.toLowerCase().startsWith("http")) && (pos >= 0) && (data.indexOf(" ", pos+1) >= 0)) {
-					 this.debugOut.println("stubbed response " + stubbedResponseCode);
-					if (stubbedResponseCode != null) {
-					// sustitue reponse code with stubbed one.
-						String[] top = data.split(" ");
-					    top[1] = stubbedResponseCode.toString();
-						data = "";
-						for (String s : top) {
-							data = data + " " + s;
-						}
-					
-						this.debugOut.println("response string: " + data);
-						responseCode = stubbedResponseCode.intValue();
-					}
-					
-					String rcString = data.substring(pos+1, data.indexOf(" ", pos+1));
-					try {
-						responseCode = Integer.parseInt(rcString);
-					}  catch (Exception e)  {
-						if (debugLevel > 0)
-							debugOut.println("Error parsing response code " + rcString);
-					}
-				}
-				
-				
-				header.append(data + "\r\n");
-			}
-			
-			// get the rest of the header info
-			while ((data = readLine(in)) != null)
-			{	
-				// the header ends at the first blank line
-				if (data.length() == 0)
-					break;
-				
 				if (stubbedBody == null) {
-					header.append(data + "\r\n");   // remove all content-length headers...					
-				} else if (data.toLowerCase().contains("content-length:")) {
-					contentLength = stubbedBody.getBytes().length;
-					header.append("content-length: " + contentLength + "\r\n");   // remove all content-length headers...	
+							// get the first line of the header, so we know the response code
+							data = readLine(in);
+							
+							if (data.split(" ")[1].toString().startsWith("http")) {
+								url.append(data.split(" ")[1].toString());
+							}
+							if (data != null)
+							{
+								
+							
+								pos = data.indexOf(" ");
+								
+								if ((data.toLowerCase().startsWith("http")) && (pos >= 0) && (data.indexOf(" ", pos+1) >= 0)) {
+									 this.debugOut.println("stubbed response " + stubbedResponseCode);
+									if (stubbedResponseCode != null) {
+									// sustitue reponse code with stubbed one.
+										String[] top = data.split(" ");
+									    top[1] = stubbedResponseCode.toString();
+										data = "";
+										for (String s : top) {
+											data = data + " " + s;
+										}
+									
+										this.debugOut.println("response string: " + data);
+										responseCode = stubbedResponseCode.intValue();
+									}
+									
+									String rcString = data.substring(pos+1, data.indexOf(" ", pos+1));
+									try {
+										responseCode = Integer.parseInt(rcString);
+									}  catch (Exception e)  {
+										if (debugLevel > 0)
+											debugOut.println("Error parsing response code " + rcString);
+									}
+								}
+								
+								
+								header.append(data + "\r\n");
+							}
+							
+							// get the rest of the header info
+							while ((data = readLine(in)) != null)
+							{	
+								// the header ends at the first blank line
+								if (data.length() == 0)
+									break;
+							
+									if (stubbedBody == null) {
+										header.append(data + "\r\n");   // remove all content-length headers...					
+									} else if (data.toLowerCase().contains("content-length:")) {
+										contentLength = stubbedBody.getBytes().length;
+										header.append("content-length: " + contentLength + "\r\n");   // remove all content-length headers...	
+									} else {
+										header.append(data + "\r\n");
+									}
+									
+									// check for the Host header
+									pos = data.toLowerCase().indexOf("host:");
+									if (pos >= 0)
+									{
+										host.setLength(0);
+										host.append(data.substring(pos + 5).trim());
+									}
+									
+									if (stubbedBody == null) {
+										// check for the Content-Length header
+										pos = data.toLowerCase().indexOf("content-length:");
+										if (pos >= 0) {
+											contentLength = Integer.parseInt(data.substring(pos + 15).trim());
+										}
+									}
+								
+							}
+							
+							// add a blank line to terminate the header info
+							header.append("\r\n");
+							
+							// convert the header to a byte array, and write it to our stream
+							out.write(header.toString().getBytes(), 0, header.length());
+							// if the header indicated that this was not a 200 response,
+							// just return what we've got if there is no Content-Length,
+							// because we may not be getting anything else
+							if ((responseCode != 200) && (contentLength == 0))
+							{
+								out.flush();
+								return header.length();
+							}
+				
+							// get the body, if any; we try to use the Content-Length header to
+							// determine how much data we're supposed to be getting, because 
+							// sometimes the client/server won't disconnect after sending us
+							// information...
+							if (contentLength > 0)
+								waitForDisconnect = false;
+							
+							if ((contentLength > 0) || (waitForDisconnect))
+							{
+								try {
+									if (stubbedBody == null) {
+										byte[] buf = new byte[4096];
+										int bytesIn = 0;
+										while ( ((byteCount < contentLength) || (waitForDisconnect)) && ((bytesIn = in.read(buf)) >= 0) ) {
+											out.write(buf, 0, bytesIn);
+											byteCount += bytesIn;
+										}
+									} else {
+										StringBufferInputStream bodybuffer = new StringBufferInputStream(stubbedBody);
+										byte[] buf = new byte[4096];
+										int bytesIn = 0;
+										while ( ((byteCount < contentLength) || (waitForDisconnect)) && ((bytesIn = bodybuffer.read(buf)) >= 0) ) {
+											out.write(buf, 0, bytesIn);
+											byteCount += bytesIn;
+										}
+									}
+									
+								}  catch (Exception e)  {
+									String errMsg = "Error getting HTTP body: " + e;
+									if (debugLevel > 0)
+										debugOut.println(errMsg);
+									//bs.write(errMsg.getBytes(), 0, errMsg.length());
+								}
+							}
+			
 				} else {
-					header.append(data + "\r\n");
-				}
-				
-				// check for the Host header
-				pos = data.toLowerCase().indexOf("host:");
-				if (pos >= 0)
-				{
-					host.setLength(0);
-					host.append(data.substring(pos + 5).trim());
-				}
-				
-				if (stubbedBody == null) {
-					// check for the Content-Length header
-					pos = data.toLowerCase().indexOf("content-length:");
-					if (pos >= 0) {
-						contentLength = Integer.parseInt(data.substring(pos + 15).trim());
+					// construct stubbed response.
+					if (stubbedResponseCode == null) {
+						stubbedResponseCode = 200;
 					}
-				}
-			}
-			
-			// add a blank line to terminate the header info
-			header.append("\r\n");
-			
-			// convert the header to a byte array, and write it to our stream
-			out.write(header.toString().getBytes(), 0, header.length());
-						
-				// if the header indicated that this was not a 200 response,
-				// just return what we've got if there is no Content-Length,
-				// because we may not be getting anything else
-				if ((responseCode != 200) && (contentLength == 0))
-				{
+					header.append("HTTP/1.0 " + stubbedResponseCode + " OK");
+					header.append("\r\n");
+					String dateString = "Wed, 09 Apr 2008 23:55:38 GMT";
+					header.append("Date: " + dateString);
+					header.append("\r\n");
+					contentLength = stubbedBody.getBytes().length;
+					header.append("Content-Length: " + contentLength + "\r\n");
+					header.append("\r\n");
+					out.write(header.toString().getBytes(), 0, header.length());
+					byte[] buf = new byte[4096];
+					int bytesIn = 0;
+					while ( ((byteCount < contentLength) || (waitForDisconnect)) && ((bytesIn = in.read(buf)) >= 0) ) {
+						out.write(buf, 0, bytesIn);
+						byteCount += bytesIn;
+					}
+					
 					out.flush();
 					return header.length();
+
 				}
-	
-				// get the body, if any; we try to use the Content-Length header to
-				// determine how much data we're supposed to be getting, because 
-				// sometimes the client/server won't disconnect after sending us
-				// information...
-				if (contentLength > 0)
-					waitForDisconnect = false;
-				
-				if ((contentLength > 0) || (waitForDisconnect))
-				{
-					try {
-						if (stubbedBody == null) {
-							byte[] buf = new byte[4096];
-							int bytesIn = 0;
-							while ( ((byteCount < contentLength) || (waitForDisconnect)) && ((bytesIn = in.read(buf)) >= 0) ) {
-								out.write(buf, 0, bytesIn);
-								byteCount += bytesIn;
-							}
-						} else {
-							StringBufferInputStream bodybuffer = new StringBufferInputStream(stubbedBody);
-							byte[] buf = new byte[4096];
-							int bytesIn = 0;
-							while ( ((byteCount < contentLength) || (waitForDisconnect)) && ((bytesIn = bodybuffer.read(buf)) >= 0) ) {
-								out.write(buf, 0, bytesIn);
-								byteCount += bytesIn;
-							}
-						}
-						
-					}  catch (Exception e)  {
-						String errMsg = "Error getting HTTP body: " + e;
-						if (debugLevel > 0)
-							debugOut.println(errMsg);
-						//bs.write(errMsg.getBytes(), 0, errMsg.length());
-					}
-				}
+		
+			
 	
 		}  catch (Exception e)  {
 			if (debugLevel > 0)
